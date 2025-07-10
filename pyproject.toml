@@ -6,6 +6,10 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["httpx>=0.28.1", "redis>=6.2.0"]
 
+[project.urls]
+Homepage = "https://github.com/fabien-marty/httpx-rate-limiter-transport"
+Repository = "https://github.com/fabien-marty/httpx-rate-limiter-transport.git"
+
 [dependency-groups]
 dev = [
     "dunamai>=1.25.0",

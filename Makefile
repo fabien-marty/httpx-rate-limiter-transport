@@ -53,6 +53,17 @@ no-dirty: ## Check that the repository is clean
 		exit 1; \
 	fi
 
+.PHONY: build
+build: ## Build the package
+	$(UV_RUN) build
+
+.PHONY: publish
+publish: ## Publish the package to PyPI
+ifeq ($(UV_PUBLISH_TOKEN),)
+	@echo "ERROR: UV_PUBLISH_TOKEN is not set" && exit 1
+endif
+	$(UV_RUN) publish
+
 .PHONY: help
 help:
 	@# See https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html

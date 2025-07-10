@@ -59,14 +59,14 @@ set-version:
 
 .PHONY: build
 build: set-version ## Build the package
-	$(UV_RUN) build
+	$(UV) build
 
 .PHONY: publish
 publish: set-version ## Publish the package to PyPI
 ifeq ($(UV_PUBLISH_TOKEN),)
 	@echo "ERROR: UV_PUBLISH_TOKEN is not set" && exit 1
 endif
-	$(UV_RUN) publish
+	$(UV) publish
 
 .PHONY: help
 help:

@@ -33,6 +33,10 @@ else
 	$(UV_RUN) pytest .
 endif
 
+.PHONY: doc
+doc: ## Generate the documentation
+	$(UV_RUN) jinja-tree .
+
 .PHONY: clean
 clean: ## Clean the repository
 	rm -Rf .venv .*_cache build dist htmlcov .coverage

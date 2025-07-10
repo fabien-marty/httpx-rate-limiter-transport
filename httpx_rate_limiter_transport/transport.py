@@ -1,3 +1,4 @@
+import contextlib
 from dataclasses import dataclass, field
 from types import TracebackType
 import httpx
@@ -5,19 +6,19 @@ from typing import Protocol
 
 from httpx_rate_limiter_transport.backend.interface import RateLimiterBackendAdapter
 
-DEFAULT_MAX_CONCURRENCY = 10
+DEFAULT_MAX_CONCURRENCY = 100
 
 
-class KeyBuilder(Protocol):
-    def __call__(self, request: httpx.Request) -> str: ...
+class GetKeyHook(Protocol):
+    def __call__(self, request: httpx.Request) -> str | None: ...
 
 
-class ConcurrencyBuilder(Protocol):
-    def __call__(self, request: httpx.Request) -> int: ...
+class GetConcurrencyHook(Protocol):
+    def __call__(self, request: httpx.Request) -> int | None: ...
 
 
 @dataclass
-class RateLimiterTransport(httpx.AsyncBaseTransport):
+class _RateLimiterTransport(httpx.AsyncBaseTransport):
     backend_adapter: RateLimiterBackendAdapter
     inner_transport: httpx.AsyncBaseTransport = field(
         default_factory=httpx.AsyncHTTPTransport
@@ -35,27 +36,69 @@ class RateLimiterTransport(httpx.AsyncBaseTransport):
         await self.inner_transport.__aexit__(exc_type, exc_value, traceback)
 
 
-def get_host_key(request: httpx.Request) -> str:
-    return request.url.host
-
-
-def get_default_concurrency(request: httpx.Request) -> int:
-    return DEFAULT_MAX_CONCURRENCY
-
-
 @dataclass
-class ConcurrencyRateLimiterTransport(RateLimiterTransport):
-    get_concurrency: ConcurrencyBuilder = field(
-        default_factory=lambda: get_default_concurrency
-    )
-    get_key: KeyBuilder = field(default_factory=lambda: get_host_key)
+class ConcurrencyRateLimiterTransport(_RateLimiterTransport):
+    global_concurrency: int | None = DEFAULT_MAX_CONCURRENCY
+    """
+    The maximum number of concurrent requests to all hosts.
+    If None, no global concurrency limit is applied. In that case, you should have
+    defined get_concurrency_cb() and/or get_key_cb() to provide a custom logic.
+    """
+
+    get_concurrency_hook: GetConcurrencyHook | None = None
+    """
+    A hook to get the number of concurrent requests for a given request.
+    If None, no concurrency limit is applied (in addition to the global limit).
+
+    If the given hook returns None or 0 for a given request, no concurrency limit is applied
+    (in addition to the global limit) for this specific request.
+    """
+
+    get_key_hook: GetKeyHook | None = None
+    """
+    A hook to get the rate limiting key for a given request.
+    If None, we use the DEFAULT_MAX_CONCURRENCY value as limit.
+
+    If the given hook returns None or 0 for a given request, no concurrency limit is applied
+    (in addition to the global limit) for this specific request.
+    """
+
+    def _get_key(self, request: httpx.Request) -> str | None:
+        if self.get_key_hook is None:
+            return None
+        key = self.get_key_hook(request)
+        if key is not None and key.startswith("__"):
+            raise ValueError(f"key cannot start with '__': {key}")
+        return key
+
+    def _get_concurrency(self, request: httpx.Request) -> int | None:
+        if self.get_concurrency_hook is None:
+            return DEFAULT_MAX_CONCURRENCY
+        concurrency = self.get_concurrency_hook(request)
+        if (
+            concurrency is not None
+            and self.global_concurrency is not None
+            and concurrency > self.global_concurrency
+        ):
+            raise ValueError(
+                f"max_concurrency ({concurrency}) is greater than global_concurrency ({self.global_concurrency})"
+            )
+        return concurrency
 
     async def handle_async_request(
         self,
         request: httpx.Request,
     ) -> httpx.Response:
-        key = self.get_key(request)
-        max_concurrency = self.get_concurrency(request)
-        semaphore = self.backend_adapter.semaphore(key, max_concurrency)
-        async with semaphore:
+        key = self._get_key(request)
+        concurrency = self._get_concurrency(request)
+        async with contextlib.AsyncExitStack() as stack:
+            if self.global_concurrency:
+                global_semaphore = self.backend_adapter.semaphore(
+                    "__global", self.global_concurrency
+                )
+                await stack.enter_async_context(global_semaphore)
+            if concurrency and key:
+                semaphore = self.backend_adapter.semaphore(key, concurrency)
+                await stack.enter_async_context(semaphore)
             return await self.inner_transport.handle_async_request(request)
+        raise Exception("should not happen")  # only for mypy

@@ -29,8 +29,8 @@ class AsyncMockTransport(httpx.AsyncBaseTransport):
 async def test_semaphore():
     mock = AsyncMockTransport(max_concurrency=10, wait_time=1)
     transport = ConcurrencyRateLimiterTransport(
+        global_concurrency=10,
         inner_transport=mock,
-        get_concurrency=lambda _: 10,
         backend_adapter=MemoryRateLimiterBackendAdapter(ttl=10),
     )
     client = httpx.AsyncClient(transport=transport)

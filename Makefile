@@ -55,7 +55,7 @@ no-dirty: ## Check that the repository is clean
 
 .PHONY: set-version
 set-version:
-	$(UV_RUN) python set_version.py $(VERSION) pyproject.toml httpx_rate_limiter_transport/__init__.py
+	$(UV_RUN) python set-version.py $(VERSION) pyproject.toml httpx_rate_limiter_transport/__init__.py
 
 .PHONY: build
 build: set-version ## Build the package

@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - 'main'
+    tags:
+      - 'v*'
+  pull_request:
+
+
+jobs:
+    
+  ci:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # v6
+        with:
+          python-version: "${{ matrix.python-version }}"
+      - name: Lint
+        run: |
+          make lint
+      - name: Test
+        run: |
+          make test
+      - name: Check that there are no dirty files
+        run: |
+          make no-dirty
+      - name: Check that there are no dirty files (after cleaning)
+        run: |
+          make clean && make no-dirty
+
+  mergify-ci-status: # this is a special job for mergify
+    runs-on: ubuntu-24.04
+    needs: ["ci"]
+    steps:
+      - name: Status
+        run: |
+          echo "OK"
+
+  publish_pypi:
+    runs-on: ubuntu-24.04
+    needs: ["ci"]
+    if: github.event_name == 'release' && github.event.action == 'created'
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # v6
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: |
+          make build
+      - name: Publish
+        run: |
+          make publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+

@@ -1,0 +1,68 @@
+# httpx-rate-limiter-transport
+
+## What is it?
+
+This project provides an async transport for [httpx](https://www.python-httpx.org/) to implement various rate limiting (using a centralized redis as backend).
+
+![](./docs/semaphore.png)
+
+## Features
+
+- Global semaphore to limit the number of concurrent requests to all hosts
+- Optional second level of semaphore to limit the number of concurrent requests (you can provide your own logic)
+    - for example: you can limit the number of concurrent requests by host, by HTTP method or only for some given hosts...
+- TTL to avoid blocking the semaphore forever (in some special cases like computer crash or network issues at the very wrong moment)
+- Can wrap another transport (if you already use one)
+
+## Roadmap
+
+- [ ] Add a "request per minute" rate limiting
+
+## Installation
+
+`pip install httpx-rate-limiter-transport`
+
+## Quickstart
+
+```python
+{{ "cat docs/quickstart.py"|shell() }}
+```
+
+## How-to
+
+<details>
+
+<summary>How to get a concurrency limit by host?</summary>
+
+To get a "concurrency limit by host", you can provide 2 hooks to define a custom/second level of concurrency limit.
+
+```python
+{{ "cat docs/custom_concurrency_limit.py"|shell() }}
+```
+
+</details>
+
+<details>
+
+<summary>How to get a concurrency limit for only one given host?</summary>
+
+To get a concurrency limit only for a given host, you can return `None` from your custom hooks to deactivate the
+concurrency control for this specific request.
+
+```python
+{{ "cat docs/custom_concurrency_limit2.py"|shell() }}
+```
+
+</details>
+
+<details>
+
+<summary>How to wrap another httpx transport?</summary>
+
+If you already use a specific `httpx` transport, you can wrap it inside this one.
+
+```python
+{{ "cat docs/wrap.py"|shell() }}
+```
+
+</details>

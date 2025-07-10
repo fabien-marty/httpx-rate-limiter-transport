@@ -2,7 +2,7 @@ UV=uv
 UV_RUN=$(UV) run
 FIX=1
 COVERAGE=0
-VERSION=$(shell $(UV_RUN) dunamai from git |sed 's/+/_/g')
+VERSION=$(shell $(UV_RUN) dunamai from git)
 
 default: help
 

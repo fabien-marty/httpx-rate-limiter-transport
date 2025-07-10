@@ -53,12 +53,16 @@ no-dirty: ## Check that the repository is clean
 		exit 1; \
 	fi
 
+.PHONY: set-version
+set-version:
+	$(UV_RUN) python set_version.py $(VERSION) pyproject.toml httpx_rate_limiter_transport/__init__.py
+
 .PHONY: build
-build: ## Build the package
+build: set-version ## Build the package
 	$(UV_RUN) build
 
 .PHONY: publish
-publish: ## Publish the package to PyPI
+publish: set-version ## Publish the package to PyPI
 ifeq ($(UV_PUBLISH_TOKEN),)
 	@echo "ERROR: UV_PUBLISH_TOKEN is not set" && exit 1
 endif

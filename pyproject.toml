@@ -1,6 +1,6 @@
 [project]
 name = "httpx-rate-limiter-transport"
-version = "0.1.0"
+version = "0.0.0"
 description = "Async transport for httpx to implement various rate limiting (using a centralized redis as backend)"
 readme = "README.md"
 requires-python = ">=3.10"

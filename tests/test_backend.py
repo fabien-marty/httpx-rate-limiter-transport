@@ -19,10 +19,12 @@ from httpx_rate_limiter_transport.backend.interface import (
 
 def is_redis_available() -> bool:
     try:
-        r = redis.Redis(host=DEFAULT_REDIS_HOST, port=DEFAULT_REDIS_PORT, db=0)
+        print(DEFAULT_REDIS_HOST, DEFAULT_REDIS_PORT)
+        r = redis.Redis(host=DEFAULT_REDIS_HOST, port=DEFAULT_REDIS_PORT)
         r.ping()
         return True
     except Exception:
+        raise  # FIXME
         return False
 
 

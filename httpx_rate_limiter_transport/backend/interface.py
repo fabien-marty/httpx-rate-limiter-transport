@@ -7,10 +7,6 @@ from typing import AsyncContextManager
 DEFAULT_TTL = 300  # 5 minutes (300 seconds)
 
 
-class RateLimiterTimeoutError(Exception):
-    pass
-
-
 @dataclass
 class RateLimiterContextManager:
     value: int

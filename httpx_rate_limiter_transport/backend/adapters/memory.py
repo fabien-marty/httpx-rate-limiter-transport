@@ -4,7 +4,6 @@ from typing import AsyncContextManager
 
 from httpx_rate_limiter_transport.backend.interface import (
     RateLimiterBackendAdapter,
-    RateLimiterTimeoutError,
 )
 
 
@@ -16,10 +15,7 @@ class SemaphoreWithTTL:
 
     async def __aenter__(self) -> None:
         self._task = asyncio.create_task(self._auto_release())
-        try:
-            await asyncio.wait_for(self._semaphore.__aenter__(), timeout=self.ttl)
-        except asyncio.TimeoutError:
-            raise RateLimiterTimeoutError()
+        await self._semaphore.__aenter__()
 
     async def _auto_release(self) -> None:
         await asyncio.sleep(self.ttl)

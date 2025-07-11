@@ -18,11 +18,11 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
-    permissions:
-      contents: read
-      packages: write
-      attestations: write
-      id-token: write
+    services:
+      redis: # some unit-tests are requiring a running redis instance
+        image: redis:8.0
+        ports:
+          - 6379:6379
     steps:
       - name: Check out repository code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4

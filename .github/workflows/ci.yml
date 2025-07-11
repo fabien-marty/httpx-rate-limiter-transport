@@ -39,6 +39,9 @@ jobs:
       - name: Test
         run: |
           make test
+      - name: Doc
+        run: |
+          make doc
       - name: Check that there are no dirty files
         run: |
           make no-dirty

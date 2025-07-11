@@ -6,17 +6,14 @@ from httpx_rate_limiter_transport.transport import ConcurrencyRateLimiterTranspo
 
 
 def get_key_cb(request: httpx.Request) -> str | None:
-    host = request.url.host
-    if host == "www.google.com":
-        # For google, no concurrency limit
-        return None
-    return host
+    return request.url.host
 
 
 def get_concurrency_cb(request: httpx.Request) -> int | None:
-    # Let's return a constant concurrency limit of 10
-    # (but of course, you can build your own logic here)
-    return 10
+    host = request.url.host
+    if host == "www.foobar.com":
+        return 10
+    return None  # no concurrency limit
 
 
 def get_httpx_client() -> httpx.AsyncClient:

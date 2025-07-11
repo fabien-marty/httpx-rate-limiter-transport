@@ -11,7 +11,7 @@ from httpx_rate_limiter_transport.backend.interface import (
 import redis.asyncio as redis
 
 DEFAULT_REDIS_HOST = os.environ.get("DEFAULT_REDIS_HOST", "localhost")
-DEFAULT_REDIS_PORT = int(os.environ.get("DEFAULT_REDIS_HOST", "6379"))
+DEFAULT_REDIS_PORT = int(os.environ.get("DEFAULT_REDIS_PORT", "6379"))
 
 ACQUIRE_LUA_SCRIPT = """
 local key = KEYS[1]

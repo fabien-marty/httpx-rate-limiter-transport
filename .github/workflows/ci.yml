@@ -36,6 +36,9 @@ jobs:
       - name: Test
         run: |
           make test
+        env:
+          DEFAULT_REDIS_HOST: redis
+          DEFAULT_REDIS_PORT: 6379
       - name: Check that there are no dirty files
         run: |
           make no-dirty

@@ -8,6 +8,8 @@ from httpx_rate_limiter_transport.backend.adapters.memory import (
     MemoryRateLimiterBackendAdapter,
 )
 from httpx_rate_limiter_transport.backend.adapters.redis import (
+    DEFAULT_REDIS_HOST,
+    DEFAULT_REDIS_PORT,
     RedisRateLimiterBackendAdapter,
 )
 from httpx_rate_limiter_transport.backend.interface import (
@@ -17,7 +19,7 @@ from httpx_rate_limiter_transport.backend.interface import (
 
 def is_redis_available() -> bool:
     try:
-        r = redis.Redis(host="localhost", port=6379, db=0)
+        r = redis.Redis(host=DEFAULT_REDIS_HOST, port=DEFAULT_REDIS_PORT, db=0)
         r.ping()
         return True
     except Exception:

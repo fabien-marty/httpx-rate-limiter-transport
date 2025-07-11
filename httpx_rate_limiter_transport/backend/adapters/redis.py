@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 import time
 from typing import AsyncContextManager
 import uuid
@@ -6,18 +7,25 @@ import uuid
 from httpx_rate_limiter_transport.backend.interface import (
     DEFAULT_TTL,
     RateLimiterBackendAdapter,
-    RateLimiterTimeoutError,
 )
 import redis.asyncio as redis
 
+DEFAULT_REDIS_HOST = os.environ.get("DEFAULT_REDIS_HOST", "localhost")
+DEFAULT_REDIS_PORT = int(os.environ.get("DEFAULT_REDIS_HOST", "6379"))
+
 ACQUIRE_LUA_SCRIPT = """
 local key = KEYS[1]
+local list_key = KEYS[2]
 local client_id = ARGV[1]
 local limit = tonumber(ARGV[2])
 local ttl = tonumber(ARGV[3])
 local now = tonumber(ARGV[4])
 local expires_at = now + ttl
-redis.call('ZREMRANGEBYSCORE', key, '-inf', now)
+local cleaned = redis.call('ZREMRANGEBYSCORE', key, '-inf', now)
+if cleaned > 0 then
+    redis.call('LPUSH', list_key, 1)
+    redis.call('EXPIRE', list_key, ttl + 10)
+end
 redis.call('ZADD', key, expires_at, client_id)
 redis.call('EXPIRE', key, ttl + 10)
 local card = redis.call('ZCARD', key)
@@ -49,6 +57,7 @@ class RedisSemaphore:
     key: str
     value: int
     ttl: int
+    _blocking_wait_time: int = 10
 
     __client_id: str | None = None
     __pool: redis.ConnectionPool | None = None
@@ -73,21 +82,18 @@ class RedisSemaphore:
         client = self._get_client()
         acquire_script = client.register_script(ACQUIRE_LUA_SCRIPT)
         async with client:
-            start = int(time.perf_counter())
             while True:
-                now = int(time.perf_counter())
+                now = time.time()
                 acquired = await acquire_script(
-                    keys=[self._get_zset_key()],
+                    keys=[self._get_zset_key(), self._get_list_key()],
                     args=[client_id, self.value, self.ttl, now],
                 )
                 if acquired == 1:
                     self.__client_id = client_id
-                    tmp = await client.zrange(self._get_zset_key(), 0, -1)
-                    print(len(tmp), tmp)
                     return None
-                if now - start >= self.ttl:
-                    raise RateLimiterTimeoutError()
-                await client.blpop(keys=[self._get_list_key()], timeout=10)  # type: ignore
+                await client.blpop(
+                    keys=[self._get_list_key()], timeout=self._blocking_wait_time
+                )  # type: ignore
 
     async def __aexit__(self, exc_type, exc_value, traceback):
         assert self.__client_id is not None
@@ -102,10 +108,15 @@ class RedisSemaphore:
 
 @dataclass
 class RedisRateLimiterBackendAdapter(RateLimiterBackendAdapter):
-    redis_url: str = "redis://localhost:6379"
+    redis_url: str = f"redis://{DEFAULT_REDIS_HOST}:{DEFAULT_REDIS_PORT}"
     ttl: int = DEFAULT_TTL
+    _blocking_wait_time: int = 10
 
     def semaphore(self, key: str, value: int) -> AsyncContextManager[None]:
         return RedisSemaphore(
-            redis_url=self.redis_url, key=key, value=value, ttl=self.ttl
+            redis_url=self.redis_url,
+            key=key,
+            value=value,
+            ttl=self.ttl,
+            _blocking_wait_time=self._blocking_wait_time,
         )

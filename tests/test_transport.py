@@ -7,7 +7,10 @@ import httpx
 from httpx_rate_limiter_transport.backend.adapters.memory import (
     MemoryRateLimiterBackendAdapter,
 )
-from httpx_rate_limiter_transport.transport import ConcurrencyRateLimiterTransport
+from httpx_rate_limiter_transport.transport import (
+    ConcurrencyRateLimiterMetrics,
+    ConcurrencyRateLimiterTransport,
+)
 
 
 @dataclass
@@ -41,3 +44,19 @@ async def test_semaphore():
     after = time.perf_counter()
     assert after - before > 2.0
     assert after - before < 3.0
+
+
+async def test_metrics():
+    async def push_metrics_hook(metrics: ConcurrencyRateLimiterMetrics):
+        assert metrics.semaphore_waiting_time > 0.0
+
+    mock = AsyncMockTransport(max_concurrency=10, wait_time=1)
+    transport = ConcurrencyRateLimiterTransport(
+        global_concurrency=10,
+        inner_transport=mock,
+        backend_adapter=MemoryRateLimiterBackendAdapter(ttl=10),
+        push_metrics_hook=push_metrics_hook,
+    )
+    client = httpx.AsyncClient(transport=transport)
+    async with client:
+        await client.get("http://foo.com/bar")

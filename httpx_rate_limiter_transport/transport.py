@@ -1,5 +1,6 @@
 import contextlib
 from dataclasses import dataclass, field
+import time
 from types import TracebackType
 import httpx
 from typing import Protocol
@@ -9,12 +10,21 @@ from httpx_rate_limiter_transport.backend.interface import RateLimiterBackendAda
 DEFAULT_MAX_CONCURRENCY = 100
 
 
+@dataclass
+class ConcurrencyRateLimiterMetrics:
+    semaphore_waiting_time: float = 0.0
+
+
 class GetKeyHook(Protocol):
     def __call__(self, request: httpx.Request) -> str | None: ...
 
 
 class GetConcurrencyHook(Protocol):
     def __call__(self, request: httpx.Request) -> int | None: ...
+
+
+class PushMetricsHook(Protocol):
+    async def __call__(self, metrics: ConcurrencyRateLimiterMetrics) -> None: ...
 
 
 @dataclass
@@ -63,6 +73,11 @@ class ConcurrencyRateLimiterTransport(_RateLimiterTransport):
     (in addition to the global limit) for this specific request.
     """
 
+    push_metrics_hook: PushMetricsHook | None = None
+    """
+    A hook to be called with some metrics (if defined).
+    """
+
     def _get_key(self, request: httpx.Request) -> str | None:
         if self.get_key_hook is None:
             return None
@@ -89,6 +104,7 @@ class ConcurrencyRateLimiterTransport(_RateLimiterTransport):
         self,
         request: httpx.Request,
     ) -> httpx.Response:
+        before = time.perf_counter()
         key = self._get_key(request)
         concurrency = self._get_concurrency(request)
         async with contextlib.AsyncExitStack() as stack:
@@ -100,5 +116,11 @@ class ConcurrencyRateLimiterTransport(_RateLimiterTransport):
             if concurrency and key:
                 semaphore = self.backend_adapter.semaphore(key, concurrency)
                 await stack.enter_async_context(semaphore)
-            return await self.inner_transport.handle_async_request(request)
+            after = time.perf_counter()
+            res = await self.inner_transport.handle_async_request(request)
+            if self.push_metrics_hook:
+                await self.push_metrics_hook(
+                    ConcurrencyRateLimiterMetrics(semaphore_waiting_time=after - before)
+                )
+            return res
         raise Exception("should not happen")  # only for mypy

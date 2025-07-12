@@ -137,6 +137,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "httpx" },
     { name = "redis" },
+    { name = "stlog" },
 ]
 
 [package.dev-dependencies]
@@ -153,6 +154,7 @@ dev = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "redis", specifier = ">=6.2.0" },
+    { name = "stlog", specifier = ">=0.5.0" },
 ]
 
 [package.metadata.requires-dev]

@@ -4,7 +4,11 @@ version = "0.0.0.post13.dev0+e66499a"
 description = "Async transport for httpx to implement various rate limiting (using a centralized redis as backend)"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["httpx>=0.28.1", "redis>=6.2.0"]
+dependencies = [
+    "httpx>=0.28.1",
+ "redis>=6.2.0",
+ "stlog>=0.5.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/fabien-marty/httpx-rate-limiter-transport"

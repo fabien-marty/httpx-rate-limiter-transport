@@ -3,12 +3,21 @@ import httpx
 from httpx_rate_limiter_transport.backend.adapters.redis import (
     RedisRateLimiterBackendAdapter,
 )
+from httpx_rate_limiter_transport.limit import (
+    ByHostConcurrencyRateLimit,
+    GlobalConcurrencyRateLimit,
+)
 from httpx_rate_limiter_transport.transport import ConcurrencyRateLimiterTransport
 
 
 def get_httpx_client() -> httpx.AsyncClient:
     transport = ConcurrencyRateLimiterTransport(
-        global_concurrency=2,
+        limits=[
+            # Global limit: no more than 10 concurrent requests to any host
+            GlobalConcurrencyRateLimit(concurrency_limit=10),
+            # Per-host limit: no more than 1 concurrent request per host
+            ByHostConcurrencyRateLimit(concurrency_limit=1),
+        ],
         backend_adapter=RedisRateLimiterBackendAdapter(
             redis_url="redis://localhost:6379", ttl=300
         ),
@@ -19,6 +28,8 @@ def get_httpx_client() -> httpx.AsyncClient:
 async def request(n: int):
     client = get_httpx_client()
     async with client:
+        # This will respect the rate limits - only 1 request per host
+        # will execute concurrently, with a global max of 10
         futures = [client.get("https://www.google.com/") for _ in range(n)]
         res = await asyncio.gather(*futures)
         for r in res:
@@ -26,4 +37,6 @@ async def request(n: int):
 
 
 if __name__ == "__main__":
+    # This will make 10 requests, but only 1 will execute at a time
+    # due to the per-host limit
     asyncio.run(request(10))

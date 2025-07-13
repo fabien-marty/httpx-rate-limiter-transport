@@ -8,7 +8,7 @@ from httpx_rate_limiter_transport.backend.interface import (
 
 
 @dataclass(kw_only=True)
-class SemaphoreWithTTL:
+class _SemaphoreWithTTL:
     ttl: int
     _semaphore: asyncio.Semaphore
     _task: asyncio.Task | None = None
@@ -44,4 +44,4 @@ class MemoryRateLimiterBackendAdapter(RateLimiterBackendAdapter):
 
     def semaphore(self, key: str, value: int) -> AsyncContextManager[None]:
         sem = self.get_semaphore(key, value)
-        return SemaphoreWithTTL(_semaphore=sem, ttl=self.ttl)
+        return _SemaphoreWithTTL(_semaphore=sem, ttl=self.ttl)

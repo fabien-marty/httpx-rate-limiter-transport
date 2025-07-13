@@ -7,6 +7,7 @@ import httpx
 from httpx_rate_limiter_transport.backend.adapters.memory import (
     MemoryRateLimiterBackendAdapter,
 )
+from httpx_rate_limiter_transport.limit import GlobalConcurrencyRateLimit
 from httpx_rate_limiter_transport.transport import (
     ConcurrencyRateLimiterMetrics,
     ConcurrencyRateLimiterTransport,
@@ -32,7 +33,7 @@ class AsyncMockTransport(httpx.AsyncBaseTransport):
 async def test_semaphore():
     mock = AsyncMockTransport(max_concurrency=10, wait_time=1)
     transport = ConcurrencyRateLimiterTransport(
-        global_concurrency=10,
+        limits=[GlobalConcurrencyRateLimit(concurrency_limit=10)],
         inner_transport=mock,
         backend_adapter=MemoryRateLimiterBackendAdapter(ttl=10),
     )
@@ -48,11 +49,12 @@ async def test_semaphore():
 
 async def test_metrics():
     async def push_metrics_hook(metrics: ConcurrencyRateLimiterMetrics):
-        assert metrics.semaphore_waiting_time > 0.0
+        assert metrics.concurrency_waiting_time > 0.0
+        assert metrics.total_call_time > 0.0
 
     mock = AsyncMockTransport(max_concurrency=10, wait_time=1)
     transport = ConcurrencyRateLimiterTransport(
-        global_concurrency=10,
+        limits=[GlobalConcurrencyRateLimit(concurrency_limit=10)],
         inner_transport=mock,
         backend_adapter=MemoryRateLimiterBackendAdapter(ttl=10),
         push_metrics_hook=push_metrics_hook,

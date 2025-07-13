@@ -9,7 +9,6 @@ def get_httpx_client() -> httpx.AsyncClient:
     original_transport = httpx.AsyncHTTPTransport(retries=3)
     transport = ConcurrencyRateLimiterTransport(
         inner_transport=original_transport,  # let's wrap the original transport
-        global_concurrency=10,
         backend_adapter=RedisRateLimiterBackendAdapter(
             redis_url="redis://localhost:6379", ttl=300
         ),

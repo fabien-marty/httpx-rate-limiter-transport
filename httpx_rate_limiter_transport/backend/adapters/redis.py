@@ -52,7 +52,8 @@ return removed
 
 
 @dataclass(kw_only=True)
-class RedisSemaphore:
+class _RedisSemaphore:
+    namespace: str
     redis_url: str
     key: str
     value: int
@@ -72,10 +73,10 @@ class RedisSemaphore:
         return redis.Redis(connection_pool=self._pool)
 
     def _get_list_key(self) -> str:
-        return f"rate_limiter:list:{self.key}"
+        return f"{self.namespace}:rate_limiter:list:{self.key}"
 
     def _get_zset_key(self) -> str:
-        return f"rate_limiter:zset:{self.key}"
+        return f"{self.namespace}:rate_limiter:zset:{self.key}"
 
     async def __aenter__(self) -> None:
         client_id = str(uuid.uuid4()).replace("-", "")
@@ -108,12 +109,34 @@ class RedisSemaphore:
 
 @dataclass
 class RedisRateLimiterBackendAdapter(RateLimiterBackendAdapter):
+    """Redis-based backend adapter for rate limiting.
+
+    This adapter uses Redis as a centralized backend to implement distributed
+    rate limiting across multiple processes or machines.
+    """
+
+    namespace: str = "default"
+    """Redis namespace prefix for all keys to avoid conflicts with other applications."""
+
     redis_url: str = f"redis://{DEFAULT_REDIS_HOST}:{DEFAULT_REDIS_PORT}"
+    """Redis connection URL in the format redis://host:port or redis://host:port/db.
+    
+    See redis-py project for more details.
+    
+    """
+
     ttl: int = DEFAULT_TTL
+    """Time-to-live in seconds for semaphore entries to prevent deadlocks in case of crashes."""
+
     _blocking_wait_time: int = 10
+    """Maximum time in seconds to wait for a semaphore release notification.
+
+    Only for testing purposes.
+    """
 
     def semaphore(self, key: str, value: int) -> AsyncContextManager[None]:
-        return RedisSemaphore(
+        return _RedisSemaphore(
+            namespace=self.namespace,
             redis_url=self.redis_url,
             key=key,
             value=value,

@@ -1,26 +1,31 @@
 import contextlib
 from dataclasses import dataclass, field
+import logging
 import time
 from types import TracebackType
 import httpx
-from typing import Protocol
+from typing import Protocol, Sequence
+
+import stlog
 
 from httpx_rate_limiter_transport.backend.interface import RateLimiterBackendAdapter
+from httpx_rate_limiter_transport.limit import (
+    ConcurrencyRateLimit,
+    get_concurrency_default_limits,
+)
 
 DEFAULT_MAX_CONCURRENCY = 100
 
 
 @dataclass
 class ConcurrencyRateLimiterMetrics:
-    semaphore_waiting_time: float = 0.0
+    concurrency_waiting_time: float = 0.0
+    """Total time (in seconds) spent waiting for concurrency semaphores."""
 
-
-class GetKeyHook(Protocol):
-    def __call__(self, request: httpx.Request) -> str | None: ...
-
-
-class GetConcurrencyHook(Protocol):
-    def __call__(self, request: httpx.Request) -> int | None: ...
+    total_call_time: float = 0.0
+    """Total time (in seconds) spent waiting in the transport (including concurrency
+    semaphore waiting time and inner transport call time).
+    """
 
 
 class PushMetricsHook(Protocol):
@@ -48,29 +53,19 @@ class _RateLimiterTransport(httpx.AsyncBaseTransport):
 
 @dataclass
 class ConcurrencyRateLimiterTransport(_RateLimiterTransport):
-    global_concurrency: int | None = DEFAULT_MAX_CONCURRENCY
+    limits: Sequence[ConcurrencyRateLimit] = field(
+        default_factory=get_concurrency_default_limits
+    )
     """
-    The maximum number of concurrent requests to all hosts.
-    If None, no global concurrency limit is applied. In that case, you should have
-    defined get_concurrency_cb() and/or get_key_cb() to provide a custom logic.
-    """
+    The limits to apply to apply.
 
-    get_concurrency_hook: GetConcurrencyHook | None = None
-    """
-    A hook to get the number of concurrent requests for a given request.
-    If None, no concurrency limit is applied (in addition to the global limit).
+    Defaults to  [
+        ByHostConcurrencyRateLimit(concurrency_limit=10),
+        GlobalConcurrencyRateLimit(concurrency_limit=100),
+    ]
 
-    If the given hook returns None or 0 for a given request, no concurrency limit is applied
-    (in addition to the global limit) for this specific request.
-    """
-
-    get_key_hook: GetKeyHook | None = None
-    """
-    A hook to get the rate limiting key for a given request.
-    If None, we use the DEFAULT_MAX_CONCURRENCY value as limit.
-
-    If the given hook returns None or 0 for a given request, no concurrency limit is applied
-    (in addition to the global limit) for this specific request.
+    WARNING: don't mix different limits in different transports for the same redis instance/namespace
+    to avoid deadlocks!
     """
 
     push_metrics_hook: PushMetricsHook | None = None
@@ -78,49 +73,47 @@ class ConcurrencyRateLimiterTransport(_RateLimiterTransport):
     A hook to be called with some metrics (if defined).
     """
 
-    def _get_key(self, request: httpx.Request) -> str | None:
-        if self.get_key_hook is None:
-            return None
-        key = self.get_key_hook(request)
-        if key is not None and key.startswith("__"):
-            raise ValueError(f"key cannot start with '__': {key}")
-        return key
+    logger: logging.LoggerAdapter | None = field(
+        default_factory=lambda: stlog.getLogger("httpx-rate_limiter_transport")
+    )
+    """The structured logger to use for logging.
 
-    def _get_concurrency(self, request: httpx.Request) -> int | None:
-        if self.get_concurrency_hook is None:
-            return DEFAULT_MAX_CONCURRENCY
-        concurrency = self.get_concurrency_hook(request)
-        if (
-            concurrency is not None
-            and self.global_concurrency is not None
-            and concurrency > self.global_concurrency
-        ):
-            raise ValueError(
-                f"max_concurrency ({concurrency}) is greater than global_concurrency ({self.global_concurrency})"
-            )
-        return concurrency
+    Set it to `None` to disable logging.
+    """
 
     async def handle_async_request(
         self,
         request: httpx.Request,
     ) -> httpx.Response:
         before = time.perf_counter()
-        key = self._get_key(request)
-        concurrency = self._get_concurrency(request)
         async with contextlib.AsyncExitStack() as stack:
-            if self.global_concurrency:
-                global_semaphore = self.backend_adapter.semaphore(
-                    "__global", self.global_concurrency
-                )
-                await stack.enter_async_context(global_semaphore)
-            if concurrency and key:
-                semaphore = self.backend_adapter.semaphore(key, concurrency)
+            for limit in self.limits:
+                key = limit._get_key(request)
+                if key is None:
+                    continue
+                semaphore = self.backend_adapter.semaphore(key, limit.concurrency_limit)
+                if self.logger:
+                    self.logger.debug(
+                        f"Acquiring {type(limit).__name__} semaphore...",
+                        key=key,
+                        limit=limit.concurrency_limit,
+                    )
                 await stack.enter_async_context(semaphore)
-            after = time.perf_counter()
+                if self.logger:
+                    self.logger.debug(
+                        f"Semaphore {type(limit).__name__} acquired.",
+                        key=key,
+                        limit=limit.concurrency_limit,
+                    )
+            after_semaphores = time.perf_counter()
             res = await self.inner_transport.handle_async_request(request)
+            after = time.perf_counter()
             if self.push_metrics_hook:
                 await self.push_metrics_hook(
-                    ConcurrencyRateLimiterMetrics(semaphore_waiting_time=after - before)
+                    ConcurrencyRateLimiterMetrics(
+                        concurrency_waiting_time=after_semaphores - before,
+                        total_call_time=after - before,
+                    )
                 )
             return res
         raise Exception("should not happen")  # only for mypy

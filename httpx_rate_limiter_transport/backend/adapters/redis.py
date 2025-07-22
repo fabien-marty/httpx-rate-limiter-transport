@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 import os
 import time
@@ -58,19 +59,13 @@ class _RedisSemaphore:
     key: str
     value: int
     ttl: int
+    _pool_acquire: redis.ConnectionPool
+    _pool_release: redis.ConnectionPool
     _blocking_wait_time: int = 10
-
     __client_id: str | None = None
-    __pool: redis.ConnectionPool | None = None
 
-    @property
-    def _pool(self) -> redis.ConnectionPool:
-        if self.__pool is None:
-            self.__pool = redis.ConnectionPool.from_url(self.redis_url)
-        return self.__pool
-
-    def _get_client(self) -> redis.Redis:
-        return redis.Redis(connection_pool=self._pool)
+    def _get_client(self, pool: redis.ConnectionPool) -> redis.Redis:
+        return redis.Redis(connection_pool=pool)
 
     def _get_list_key(self) -> str:
         return f"{self.namespace}:rate_limiter:list:{self.key}"
@@ -79,32 +74,52 @@ class _RedisSemaphore:
         return f"{self.namespace}:rate_limiter:zset:{self.key}"
 
     async def __aenter__(self) -> None:
+        if self.__client_id is not None:
+            raise RuntimeError(
+                "Semaphore already acquired (in the past) => don't reuse the same semaphore instance"
+            )
         client_id = str(uuid.uuid4()).replace("-", "")
-        client = self._get_client()
+        client = self._get_client(self._pool_acquire)
         acquire_script = client.register_script(ACQUIRE_LUA_SCRIPT)
         async with client:
             while True:
-                now = time.time()
-                acquired = await acquire_script(
-                    keys=[self._get_zset_key(), self._get_list_key()],
-                    args=[client_id, self.value, self.ttl, now],
-                )
-                if acquired == 1:
-                    self.__client_id = client_id
-                    return None
-                await client.blpop(
-                    keys=[self._get_list_key()], timeout=self._blocking_wait_time
-                )  # type: ignore
+                try:
+                    now = time.time()
+                    acquired = await acquire_script(
+                        keys=[self._get_zset_key(), self._get_list_key()],
+                        args=[client_id, self.value, self.ttl, now],
+                    )
+                    if acquired == 1:
+                        self.__client_id = client_id
+                        return None
+                    await client.blpop(
+                        keys=[self._get_list_key()], timeout=self._blocking_wait_time
+                    )  # type: ignore
+                except redis.ConnectionError as e:
+                    if "Too many connections" in str(e):
+                        print("sleep 0.1")
+                        await asyncio.sleep(0.1)
+                    else:
+                        raise e
 
     async def __aexit__(self, exc_type, exc_value, traceback):
         assert self.__client_id is not None
-        client = self._get_client()
+        client = await self._get_client(self._pool_release)
         release_script = client.register_script(RELEASE_LUA_SCRIPT)
-        async with client:
-            await release_script(
-                keys=[self._get_zset_key(), self._get_list_key()],
-                args=[self.__client_id, self.ttl],
-            )
+        while True:
+            async with client:
+                try:
+                    await release_script(
+                        keys=[self._get_zset_key(), self._get_list_key()],
+                        args=[self.__client_id, self.ttl],
+                    )
+                    return
+                except redis.ConnectionError as e:
+                    if "Too many connections" in str(e):
+                        print("sleep 1")
+                        await asyncio.sleep(0.1)
+                    else:
+                        raise e
 
 
 @dataclass
@@ -134,6 +149,25 @@ class RedisRateLimiterBackendAdapter(RateLimiterBackendAdapter):
     Only for testing purposes.
     """
 
+    __pool_acquire: redis.ConnectionPool | None = None
+    __pool_release: redis.ConnectionPool | None = None
+
+    @property
+    def _pool_acquire(self) -> redis.ConnectionPool:
+        if self.__pool_acquire is None:
+            self.__pool_acquire = redis.ConnectionPool.from_url(
+                self.redis_url, max_connections=1000
+            )
+        return self.__pool_acquire
+
+    @property
+    def _pool_release(self) -> redis.ConnectionPool:
+        if self.__pool_release is None:
+            self.__pool_release = redis.ConnectionPool.from_url(
+                self.redis_url, max_connections=1000
+            )
+        return self.__pool_release
+
     def semaphore(self, key: str, value: int) -> AsyncContextManager[None]:
         return _RedisSemaphore(
             namespace=self.namespace,
@@ -141,5 +175,7 @@ class RedisRateLimiterBackendAdapter(RateLimiterBackendAdapter):
             key=key,
             value=value,
             ttl=self.ttl,
+            _pool_acquire=self._pool_acquire,
+            _pool_release=self._pool_release,
             _blocking_wait_time=self._blocking_wait_time,
         )

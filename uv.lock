@@ -18,6 +18,20 @@ wheels = [
 ]
 
 [[package]]
+name = "async-redis-rate-limiters"
+version = "0.0.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "redis" },
+    { name = "stlog" },
+    { name = "tenacity" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/be/6c/2c5d2f47f81a83d4876aff99ac54f193abe1454d78cfa3264fabc0b6fd28/async_redis_rate_limiters-0.0.5.tar.gz", hash = "sha256:3de6e83eca23c0899e5fecf61cb475f6999986668ef725a5e60bd16e2190c042", size = 8916 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e4/c8/5386c042b5cf636d481920dd5a11646798358da8e733d1c0b4bc400faa38/async_redis_rate_limiters-0.0.5-py3-none-any.whl", hash = "sha256:0a41480c41028c8b3e06bb32bf3b3ff2f71974c566ac7616095c7fa2ad68a524", size = 9813 },
+]
+
+[[package]]
 name = "async-timeout"
 version = "5.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -135,6 +149,7 @@ name = "httpx-rate-limiter-transport"
 version = "0.0.0.post13.dev0+e66499a"
 source = { virtual = "." }
 dependencies = [
+    { name = "async-redis-rate-limiters" },
     { name = "httpx" },
     { name = "redis" },
     { name = "stlog" },
@@ -152,6 +167,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "async-redis-rate-limiters", specifier = ">=0.0.5" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "redis", specifier = ">=6.2.0" },
     { name = "stlog", specifier = ">=0.5.0" },
@@ -505,6 +521,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/44/14/c4433b78afd9dc4b96a2ca834dc0c8c06785d61d228e8f530c19425bb7cf/stlog-0.5.0.tar.gz", hash = "sha256:8c3dc01985b72c841b5f6c527a55fc779deeb8d8d371382f99a4d3b214122f8d", size = 18990 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/46/0a/ed1f27d309cf9189cc4b9ab653b0488635e4d9479da8cbabc7dc47de9308/stlog-0.5.0-py3-none-any.whl", hash = "sha256:04e8ce148365e81194eea6095b15747e82ec855f482499e757b865886ed9a6ea", size = 22934 },
+]
+
+[[package]]
+name = "tenacity"
+version = "9.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/d4/2b0cd0fe285e14b36db076e78c93766ff1d529d70408bd1d2a5a84f1d929/tenacity-9.1.2.tar.gz", hash = "sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb", size = 48036 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/30/643397144bfbfec6f6ef821f36f33e57d35946c44a2352d3c9f0ae847619/tenacity-9.1.2-py3-none-any.whl", hash = "sha256:f77bf36710d8b73a50b2dd155c97b870017ad21afe6ab300326b0371b3b05138", size = 28248 },
 ]
 
 [[package]]

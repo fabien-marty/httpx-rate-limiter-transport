@@ -3,12 +3,12 @@ from dataclasses import dataclass, field
 import logging
 import time
 from types import TracebackType
+from async_redis_rate_limiters import DistributedSemaphoreManager
 import httpx
 from typing import Protocol, Sequence
 
 import stlog
 
-from httpx_rate_limiter_transport.backend.interface import RateLimiterBackendAdapter
 from httpx_rate_limiter_transport.limit import (
     ConcurrencyRateLimit,
     get_concurrency_default_limits,
@@ -34,7 +34,7 @@ class PushMetricsHook(Protocol):
 
 @dataclass
 class _RateLimiterTransport(httpx.AsyncBaseTransport):
-    backend_adapter: RateLimiterBackendAdapter
+    semaphore_manager: DistributedSemaphoreManager
     inner_transport: httpx.AsyncBaseTransport = field(
         default_factory=httpx.AsyncHTTPTransport
     )
@@ -91,7 +91,9 @@ class ConcurrencyRateLimiterTransport(_RateLimiterTransport):
                 key = limit._get_key(request)
                 if key is None:
                     continue
-                semaphore = self.backend_adapter.semaphore(key, limit.concurrency_limit)
+                semaphore = self.semaphore_manager.get_semaphore(
+                    key, limit.concurrency_limit
+                )
                 if self.logger:
                     self.logger.debug(
                         f"Acquiring {type(limit).__name__} semaphore...",

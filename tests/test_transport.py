@@ -2,11 +2,9 @@ import asyncio
 from dataclasses import dataclass, field
 import time
 import uuid
+from async_redis_rate_limiters import DistributedSemaphoreManager
 import httpx
 
-from httpx_rate_limiter_transport.backend.adapters.memory import (
-    MemoryRateLimiterBackendAdapter,
-)
 from httpx_rate_limiter_transport.limit import GlobalConcurrencyRateLimit
 from httpx_rate_limiter_transport.transport import (
     ConcurrencyRateLimiterMetrics,
@@ -35,7 +33,7 @@ async def test_semaphore():
     transport = ConcurrencyRateLimiterTransport(
         limits=[GlobalConcurrencyRateLimit(concurrency_limit=10)],
         inner_transport=mock,
-        backend_adapter=MemoryRateLimiterBackendAdapter(ttl=10),
+        semaphore_manager=DistributedSemaphoreManager(backend="memory"),
     )
     client = httpx.AsyncClient(transport=transport)
     before = time.perf_counter()
@@ -56,7 +54,7 @@ async def test_metrics():
     transport = ConcurrencyRateLimiterTransport(
         limits=[GlobalConcurrencyRateLimit(concurrency_limit=10)],
         inner_transport=mock,
-        backend_adapter=MemoryRateLimiterBackendAdapter(ttl=10),
+        semaphore_manager=DistributedSemaphoreManager(backend="memory"),
         push_metrics_hook=push_metrics_hook,
     )
     client = httpx.AsyncClient(transport=transport)

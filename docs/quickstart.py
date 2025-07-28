@@ -1,13 +1,11 @@
 import asyncio
 import httpx
-from httpx_rate_limiter_transport.backend.adapters.redis import (
-    RedisRateLimiterBackendAdapter,
-)
 from httpx_rate_limiter_transport.limit import (
     ByHostConcurrencyRateLimit,
     GlobalConcurrencyRateLimit,
 )
 from httpx_rate_limiter_transport.transport import ConcurrencyRateLimiterTransport
+from async_redis_rate_limiters import DistributedSemaphoreManager
 
 
 def get_httpx_client() -> httpx.AsyncClient:
@@ -18,8 +16,8 @@ def get_httpx_client() -> httpx.AsyncClient:
             # Per-host limit: no more than 1 concurrent request per host
             ByHostConcurrencyRateLimit(concurrency_limit=1),
         ],
-        backend_adapter=RedisRateLimiterBackendAdapter(
-            redis_url="redis://localhost:6379", ttl=300
+        semaphore_manager=DistributedSemaphoreManager(
+            redis_url="redis://localhost:6379", redis_ttl=300
         ),
     )
     return httpx.AsyncClient(transport=transport, timeout=300)

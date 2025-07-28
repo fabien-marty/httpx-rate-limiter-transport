@@ -5,9 +5,10 @@ description = "Async transport for httpx to implement various rate limiting (usi
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "async-redis-rate-limiters>=0.0.5",
     "httpx>=0.28.1",
- "redis>=6.2.0",
- "stlog>=0.5.0",
+    "redis>=6.2.0",
+    "stlog>=0.5.0",
 ]
 
 [project.urls]

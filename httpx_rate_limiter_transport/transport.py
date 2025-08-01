@@ -91,16 +91,15 @@ class ConcurrencyRateLimiterTransport(_RateLimiterTransport):
                 key = limit._get_key(request)
                 if key is None:
                     continue
-                semaphore = self.semaphore_manager.get_semaphore(
-                    key, limit.concurrency_limit
-                )
                 if self.logger:
                     self.logger.debug(
                         f"Acquiring {type(limit).__name__} semaphore...",
                         key=key,
                         limit=limit.concurrency_limit,
                     )
-                await stack.enter_async_context(semaphore)
+                await stack.enter_async_context(
+                    self.semaphore_manager.get_semaphore(key, limit.concurrency_limit)
+                )
                 if self.logger:
                     self.logger.debug(
                         f"Semaphore {type(limit).__name__} acquired.",

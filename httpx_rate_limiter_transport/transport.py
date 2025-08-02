@@ -3,9 +3,8 @@ from dataclasses import dataclass, field
 import logging
 import time
 from types import TracebackType
-from async_redis_rate_limiters import DistributedSemaphoreManager
 import httpx
-from typing import Protocol, Sequence
+from typing import AsyncContextManager, Protocol, Sequence
 
 import stlog
 
@@ -15,6 +14,12 @@ from httpx_rate_limiter_transport.limit import (
 )
 
 DEFAULT_MAX_CONCURRENCY = 100
+
+
+class SemaphoreManagerProtocol(Protocol):
+    def get_semaphore(self, key: str, value: int) -> AsyncContextManager[None]:
+        """Return a semaphore for the given key and the given value."""
+        pass
 
 
 @dataclass
@@ -34,7 +39,7 @@ class PushMetricsHook(Protocol):
 
 @dataclass
 class _RateLimiterTransport(httpx.AsyncBaseTransport):
-    semaphore_manager: DistributedSemaphoreManager
+    semaphore_manager: SemaphoreManagerProtocol
     inner_transport: httpx.AsyncBaseTransport = field(
         default_factory=httpx.AsyncHTTPTransport
     )

@@ -69,17 +69,19 @@ class SingleHostConcurrencyRateLimit(ConcurrencyRateLimit):
 
     """
 
-    host: str
+    host: str | list[str]
     fnmatch_pattern: bool = True
     """Whether to use fnmatch pattern to match the host."""
 
     def _get_key(self, request: httpx.Request) -> str | None:
         host = request.url.host
+        hosts = self.host if isinstance(self.host, list) else [self.host]
         if self.fnmatch_pattern:
-            if fnmatch.fnmatch(host, self.host):
-                return f"__single_host_{host}"
+            for h in hosts:
+                if fnmatch.fnmatch(host, h):
+                    return f"__single_host_{host}"
         else:
-            if host == self.host:
+            if host in hosts:
                 return f"__single_host_{host}"
         return None
 

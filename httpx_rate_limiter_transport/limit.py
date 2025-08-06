@@ -56,7 +56,7 @@ class ByHostConcurrencyRateLimit(ConcurrencyRateLimit):
     """
 
     def _get_key(self, request: httpx.Request) -> str | None:
-        return f"__{request.url.host}"
+        return f"___by_host_{request.url.host}"
 
 
 @dataclass(kw_only=True)
@@ -77,10 +77,10 @@ class SingleHostConcurrencyRateLimit(ConcurrencyRateLimit):
         host = request.url.host
         if self.fnmatch_pattern:
             if fnmatch.fnmatch(host, self.host):
-                return f"__{host}"
+                return f"__single_host_{host}"
         else:
             if host == self.host:
-                return f"__{host}"
+                return f"__single_host_{host}"
         return None
 
 

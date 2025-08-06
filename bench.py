@@ -8,7 +8,7 @@ from httpx_rate_limiter_transport.transport import ConcurrencyRateLimiterTranspo
 
 counter_dict = {"counter": 0}
 
-NUMBER_OF_REQUESTS = 1000
+NUMBER_OF_REQUESTS = 10_000
 MAX_CONCURRENCY = 10
 
 

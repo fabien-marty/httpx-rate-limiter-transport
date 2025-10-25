@@ -1,4 +1,3 @@
-import contextlib
 from dataclasses import dataclass, field
 import logging
 import time
@@ -12,6 +11,7 @@ from httpx_rate_limiter_transport.limit import (
     ConcurrencyRateLimit,
     get_concurrency_default_limits,
 )
+from httpx_rate_limiter_transport.utils import SafeAsyncExitStack
 
 DEFAULT_MAX_CONCURRENCY = 100
 
@@ -91,7 +91,7 @@ class ConcurrencyRateLimiterTransport(_RateLimiterTransport):
         request: httpx.Request,
     ) -> httpx.Response:
         before = time.perf_counter()
-        async with contextlib.AsyncExitStack() as stack:
+        async with SafeAsyncExitStack() as stack:
             for limit in self.limits:
                 key = limit._get_key(request)
                 if key is None:
@@ -122,4 +122,3 @@ class ConcurrencyRateLimiterTransport(_RateLimiterTransport):
                     )
                 )
             return res
-        raise Exception("should not happen")  # only for mypy

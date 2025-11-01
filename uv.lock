@@ -1,6 +1,10 @@
 version = 1
 revision = 3
 requires-python = ">=3.10"
+resolution-markers = [
+    "python_full_version >= '3.13'",
+    "python_full_version < '3.13'",
+]
 
 [[package]]
 name = "anyio"
@@ -19,15 +23,34 @@ wheels = [
 
 [[package]]
 name = "async-redis-rate-limiters"
-version = "0.1.2"
+version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "redis" },
-    { name = "tenacity" },
+resolution-markers = [
+    "python_full_version < '3.13'",
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f6/a2/50be97747eaca6f53bbb737d627e3121561acc480a0cdc259d27e27719cc/async_redis_rate_limiters-0.1.2.tar.gz", hash = "sha256:7e40c77e2c5b3d3cbe640abfdf8f4c47d966ed0ec2ae501d57958980c12b4307", size = 8237, upload-time = "2025-10-25T09:35:21.682Z" }
+dependencies = [
+    { name = "redis", marker = "python_full_version < '3.13'" },
+    { name = "tenacity", marker = "python_full_version < '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/16/21/b32a82d9b844cdaf8fc9d2af826ef63a9d0bab7fff7a41651cdbbc99f4f7/async_redis_rate_limiters-0.1.4.tar.gz", hash = "sha256:9852e04bbd4dda359a3434f86cc45ca4d2ce48cf7ade36f283fd60e4da7156ee", size = 8423, upload-time = "2025-10-27T17:42:47.672Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bf/37/46a927eb05adb1c0c71f03723ef670c4692ecf6b8b8538497bd605ba9fe4/async_redis_rate_limiters-0.1.2-py3-none-any.whl", hash = "sha256:c1b4cb8d93ec3201ac24b2937ae1caca3f2ff217d5d4ff917e4ba0a0bde0b4c8", size = 8985, upload-time = "2025-10-25T09:35:20.622Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/ab/0c5988867faafc4921ea11cdbf32c8b806e1f24d5388c81886945c8773d2/async_redis_rate_limiters-0.1.4-py3-none-any.whl", hash = "sha256:cc3163b5c7e0e7e6696605417c73b5a87ba8270678e3dabc1465fdc3d1690054", size = 9178, upload-time = "2025-10-27T17:42:46.696Z" },
+]
+
+[[package]]
+name = "async-redis-rate-limiters"
+version = "0.1.7"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.13'",
+]
+dependencies = [
+    { name = "redis", marker = "python_full_version >= '3.13'" },
+    { name = "tenacity", marker = "python_full_version >= '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/65/ae/59951aa5425f138647c68715979a9aba46d02366e75c8bdeb6330a20b14f/async_redis_rate_limiters-0.1.7.tar.gz", hash = "sha256:38601047a2a2b9358d92fcba2863e56969b75e35a17f8955ce6550368d3f6f4b", size = 8724, upload-time = "2025-10-29T11:59:25.841Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/33/1e/92e2dd89047bb71b2ddca888b2c317e4177a6a52687423d5139f703971df/async_redis_rate_limiters-0.1.7-py3-none-any.whl", hash = "sha256:e7fec98314d63987d9ad2a0d837c748fe2b779542ed9b4b8743c697f2f74d099", size = 9299, upload-time = "2025-10-29T11:59:24.922Z" },
 ]
 
 [[package]]
@@ -157,7 +180,8 @@ name = "httpx-rate-limiter-transport"
 version = "0.0.0.post13.dev0+e66499a"
 source = { virtual = "." }
 dependencies = [
-    { name = "async-redis-rate-limiters" },
+    { name = "async-redis-rate-limiters", version = "0.1.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "async-redis-rate-limiters", version = "0.1.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "httpx" },
     { name = "redis" },
     { name = "stlog" },

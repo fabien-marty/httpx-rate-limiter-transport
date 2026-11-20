@@ -18,7 +18,6 @@ queue_rules:
 
   - name: default
     merge_method: squash
-    commit_message_format: pr-title
     queue_conditions:
       - or:
         - check-success = mergify-ci-status

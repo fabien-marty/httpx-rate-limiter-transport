@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass, field
 import logging
 import time
@@ -91,34 +92,50 @@ class ConcurrencyRateLimiterTransport(_RateLimiterTransport):
         request: httpx.Request,
     ) -> httpx.Response:
         before = time.perf_counter()
-        async with SafeAsyncExitStack() as stack:
-            for limit in self.limits:
-                key = limit._get_key(request)
-                if key is None:
-                    continue
-                if self.logger:
-                    self.logger.debug(
-                        f"Acquiring {type(limit).__name__} semaphore...",
-                        key=key,
-                        limit=limit.concurrency_limit,
+        response: httpx.Response | None = None
+        try:
+            async with SafeAsyncExitStack() as stack:
+                for limit in self.limits:
+                    key = limit._get_key(request)
+                    if key is None:
+                        continue
+                    if self.logger:
+                        self.logger.debug(
+                            f"Acquiring {type(limit).__name__} semaphore...",
+                            key=key,
+                            limit=limit.concurrency_limit,
+                        )
+                    await stack.enter_async_context(
+                        self.semaphore_manager.get_semaphore(
+                            key, limit.concurrency_limit
+                        )
                     )
-                await stack.enter_async_context(
-                    self.semaphore_manager.get_semaphore(key, limit.concurrency_limit)
-                )
-                if self.logger:
-                    self.logger.debug(
-                        f"Semaphore {type(limit).__name__} acquired.",
-                        key=key,
-                        limit=limit.concurrency_limit,
+                    if self.logger:
+                        self.logger.debug(
+                            f"Semaphore {type(limit).__name__} acquired.",
+                            key=key,
+                            limit=limit.concurrency_limit,
+                        )
+                after_semaphores = time.perf_counter()
+                response = await self.inner_transport.handle_async_request(request)
+                after = time.perf_counter()
+                if self.push_metrics_hook:
+                    await self.push_metrics_hook(
+                        ConcurrencyRateLimiterMetrics(
+                            concurrency_waiting_time=after_semaphores - before,
+                            total_call_time=after - before,
+                        )
                     )
-            after_semaphores = time.perf_counter()
-            res = await self.inner_transport.handle_async_request(request)
-            after = time.perf_counter()
-            if self.push_metrics_hook:
-                await self.push_metrics_hook(
-                    ConcurrencyRateLimiterMetrics(
-                        concurrency_waiting_time=after_semaphores - before,
-                        total_call_time=after - before,
-                    )
-                )
-            return res
+                return response
+        except BaseException:
+            if response is not None:
+                # The caller never received this response; a second cancellation
+                # must not interrupt its close.
+                try:
+                    await asyncio.shield(response.aclose())
+                except Exception:
+                    if self.logger:
+                        self.logger.exception(
+                            "Failed to close response after request failure"
+                        )
+            raise

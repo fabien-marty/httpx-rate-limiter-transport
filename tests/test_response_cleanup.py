@@ -165,17 +165,27 @@ async def test_response_close_error_does_not_replace_metrics_error(caplog):
 async def test_response_close_error_does_not_replace_cancellation():
     inner = _ResponseTransport(body=_FailingBody())
     semaphores = _SemaphoreManager()
-    task = asyncio.create_task(
-        _transport(inner, semaphores).handle_async_request(
-            httpx.Request("GET", "https://example.com/")
-        )
-    )
+    cancellations: list[asyncio.CancelledError] = []
+
+    async def request() -> None:
+        try:
+            await _transport(inner, semaphores).handle_async_request(
+                httpx.Request("GET", "https://example.com/")
+            )
+        except asyncio.CancelledError as exc:
+            # Python 3.10 can lose the message when awaiting a cancelled task.
+            cancellations.append(exc)
+            raise
+
+    task = asyncio.create_task(request())
 
     try:
         await asyncio.wait_for(semaphores.release_started.wait(), timeout=1)
         task.cancel("request cancelled")
-        with pytest.raises(asyncio.CancelledError, match="request cancelled"):
+        with pytest.raises(asyncio.CancelledError):
             await task
+        assert len(cancellations) == 1
+        assert str(cancellations[0]) == "request cancelled"
         assert inner.body.close_started.is_set()
     finally:
         semaphores.release_allowed.set()
